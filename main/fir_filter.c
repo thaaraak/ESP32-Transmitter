@@ -82,10 +82,11 @@ static void _fir_filter( audio_element_handle_t self, int16_t* arr, int len )
     float	*srcLeft = fir->srcLeft;
     float	*srcRight = fir->srcRight;
 
-    if ( fir->type == FF_RIGHT_ONLY )
+    if ( fir->type == FF_RIGHT_ONLY ) {
     	srcLeft = fir->srcRight;
-    else if ( fir->type == FF_LEFT_ONLY )
+    } else if ( fir->type == FF_LEFT_ONLY ) {
     	srcRight = fir->srcLeft;
+    }
 
     dsps_fir_f32_ae32(&(fir->firLeft), srcLeft, fir->destLeft, len/2);
     dsps_fir_f32_ae32(&(fir->firRight), srcRight, fir->destRight, len/2);

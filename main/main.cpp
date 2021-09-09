@@ -11,10 +11,9 @@
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
 
-
 #define I2C_MASTER_NUM	1
-#define I2C_MASTER_SDA_IO 17
-#define I2C_MASTER_SCL_IO 16
+#define I2C_MASTER_SDA_IO 27
+#define I2C_MASTER_SCL_IO 26
 
 static const char *TAG = "esp32-transmitter";
 
@@ -112,6 +111,10 @@ void changeFrequency( int currentFrequency )
 		  mult = 40;
 	  else if ( currentFrequency < 30000000 )
 		  mult = 30;
+	  else if ( currentFrequency < 35000000 )
+		  mult = 20;
+	  else if ( currentFrequency < 45000000 )
+		  mult = 15;
 
 	  uint64_t freq = currentFrequency * 100ULL;
 	  uint64_t pllFreq = freq * mult;
@@ -121,10 +124,44 @@ void changeFrequency( int currentFrequency )
 
 	  if ( mult != lastMult )
 	  {
-		  synth.drive_strength( SI5351_CLK0, SI5351_DRIVE_8MA );
-		  synth.drive_strength( SI5351_CLK2, SI5351_DRIVE_8MA );
+		  synth.drive_strength( SI5351_CLK0, SI5351_DRIVE_2MA );
+		  synth.drive_strength( SI5351_CLK2, SI5351_DRIVE_2MA );
 		  synth.set_phase(SI5351_CLK0, 0);
 		  synth.set_phase(SI5351_CLK2, mult);
+		  synth.pll_reset(SI5351_PLLA);
+		  lastMult = mult;
+	  }
+}
+
+void setFrequency( int currentFrequency )
+{
+	  synth.pll_reset(SI5351_PLLA);
+
+	  int mult = 15;
+
+	  if ( currentFrequency < 8000000 )
+		  mult = 100;
+	  else if ( currentFrequency < 11000000 )
+		  mult = 80;
+	  else if ( currentFrequency < 15000000 )
+		  mult = 50;
+	  else if ( currentFrequency < 22000000 )
+		  mult = 40;
+	  else if ( currentFrequency < 30000000 )
+		  mult = 30;
+	  else if ( currentFrequency < 40000000 )
+		  mult = 20;
+	  else if ( currentFrequency < 60000000 )
+		  mult = 15;
+
+	  uint64_t freq = currentFrequency * 100ULL;
+	  uint64_t pllFreq = freq * mult;
+
+	  synth.set_freq_manual(freq, pllFreq, SI5351_CLK1);
+
+	  if ( mult != lastMult )
+	  {
+		  synth.drive_strength( SI5351_CLK1, SI5351_DRIVE_2MA );
 		  synth.pll_reset(SI5351_PLLA);
 		  lastMult = mult;
 	  }
@@ -134,13 +171,20 @@ void changeFrequency( int currentFrequency )
 void app_main()
 {
 
+
     ESP_LOGI(TAG, "Initializing I2C");
 	i2c_master_init();
 
 	ESP_LOGI(TAG, "Initializing si5351");
 	synth.init( I2C_MASTER_NUM, SI5351_CRYSTAL_LOAD_8PF, 25000000, 0 );
 
-	int freq = 14100000;
+/*
+	int freq = 56000000;
+	uint64_t synth_freq = freq * 100ULL;
+	synth.set_freq( synth_freq, SI5351_CLK1 );
+	synth.pll_reset(SI5351_PLLA);
+*/
+	int freq = 14000000;
 	changeFrequency(freq);
 
     //Check if Two Point or Vref are burned into eFuse
@@ -158,8 +202,6 @@ void app_main()
     adc_chars = (esp_adc_cal_characteristics_t*) calloc(1, sizeof(esp_adc_cal_characteristics_t));
     esp_adc_cal_value_t val_type = esp_adc_cal_characterize(unit, atten, width, DEFAULT_VREF, adc_chars);
     print_char_val_type(val_type);
-
-
 
 	ESP_LOGI(TAG, "Entering Audio Processing loop");
     xTaskCreate( &phase_filter, "phase_filter_task_0", 4096 * 2, (void* ) 0, 10, NULL);
@@ -184,9 +226,11 @@ void app_main()
         adc_reading /= NO_OF_SAMPLES;
         uint32_t voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars);
 
-        adc_reading = adc_reading * 100 / 4096;
+//        adc_reading = adc_reading * 100 / 4096;
+        adc_reading = voltage;
 
-        if ( last_adc_reading != adc_reading ) {
+
+        if ( abs((double) last_adc_reading - adc_reading ) > 1 ) {
         	last_adc_reading = adc_reading;
         	change_filter_balance( adc_reading );
             printf("Raw: %d\tVoltage: %dmV\n", adc_reading, voltage);
@@ -195,4 +239,5 @@ void app_main()
         vTaskDelay(pdMS_TO_TICKS(200));
 
     }
+
 }

@@ -1,11 +1,3 @@
-/* Audio passthru
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -17,6 +9,7 @@
 #include "passthru_encoder.h"
 #include "fir_filter.h"
 #include "coeffs.h"
+#include "coeffs_22000.h"
 
 static const char *TAG = "PASSTHRU";
 
@@ -25,7 +18,7 @@ audio_element_handle_t fir_filter = NULL;
 void change_filter_balance( uint32_t balance )
 {
 	if ( fir_filter != NULL )
-		set_balance( fir_filter, .8 + (float)balance / 250.0 );
+		set_balance( fir_filter, .8 + (float)balance / 8000.0 );
 }
 
 void phase_filter( void* param )
@@ -43,6 +36,7 @@ void phase_filter( void* param )
     // adds the Line In2 to the DAC bypassing the ADC
 
     audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_BOTH, AUDIO_HAL_CTRL_START);
+    audio_hal_set_volume( board_handle->audio_hal, 95 );
 
     ESP_LOGI(TAG, "[ 2 ] Create audio pipeline for playback");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
@@ -51,6 +45,8 @@ void phase_filter( void* param )
     ESP_LOGI(TAG, "[3.1] Create i2s stream to write data to codec chip");
     i2s_stream_cfg_t i2s_cfg = I2S_STREAM_CFG_DEFAULT();
     i2s_cfg.type = AUDIO_STREAM_WRITER;
+    i2s_cfg.i2s_config.sample_rate = 22000;                                                   \
+
     i2s_stream_writer = i2s_stream_init(&i2s_cfg);
 /*
     ESP_LOGI(TAG, "[3.2] Create Passthru Encoder");
@@ -69,15 +65,20 @@ void phase_filter( void* param )
     fir_filter_cfg.coeffsLeft = coeffs_minus45;
     fir_filter_cfg.coeffsRight = coeffs_plus45;
 */
-    fir_filter_cfg.firLen = 300;
+    fir_filter_cfg.firLen = 500;
+    fir_filter_cfg.coeffsLeft = coeffs_22000_500plus45;
+    fir_filter_cfg.coeffsRight = coeffs_22000_500minus45;
 
+    /*
     // Lower Sideband
+    fir_filter_cfg.firLen = 300;
     fir_filter_cfg.coeffsLeft = coeffs_300plus45;
     fir_filter_cfg.coeffsRight = coeffs_300minus45;
 
     // Upper Sideband
     fir_filter_cfg.coeffsLeft = coeffs_300minus45;
-    fir_filter_cfg.coeffsRight = coeffs_300plus45;
+    fir_filter_cfg.coeffsRight = coeffs_300plus45; */
+
 /*
 
 
@@ -96,6 +97,7 @@ void phase_filter( void* param )
     ESP_LOGI(TAG, "[3.3] Create i2s stream to read data from codec chip");
     i2s_stream_cfg_t i2s_cfg_read = I2S_STREAM_CFG_DEFAULT();
     i2s_cfg_read.type = AUDIO_STREAM_READER;
+    i2s_cfg_read.i2s_config.sample_rate = 22000;                                                   \
     i2s_stream_reader = i2s_stream_init(&i2s_cfg_read);
 
 
